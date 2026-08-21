@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate-yaml:
+    name: Validate YAML syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pip install yamllint
+      - name: Lint YAML files
+        run: |
+          yamllint -d relaxed docker-compose.yml
+          yamllint -d relaxed prometheus/prometheus.yml
+          yamllint -d relaxed grafana/provisioning/dashboards/dashboard.yml
+          yamllint -d relaxed grafana/provisioning/datasources/datasource.yml
+
+  validate-json:
+    name: Validate JSON syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate dashboard JSON
+        run: python3 -m json.tool grafana/provisioning/dashboards/json/hobot-dashboard.json > /dev/null
+
+  lint-python:
+    name: Lint Python (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run ruff
+        run: ruff check exporter/exporter.py router/exporter.py scripts/check_vacuum.py
+
+  lint-shell:
+    name: Lint shell scripts (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          # SC1091: can't follow /opt/etc/init.d/rc.func — it lives on the
+          # target device (Entware), not in this repo, so shellcheck can't
+          # see it. SC2034: the PROCS/ARGS/etc variables below ARE used,
+          # but only by that same external rc.func, which shellcheck can't
+          # see either. Everything else is still checked normally.
+          shellcheck --shell=sh --exclude=SC1091,SC2034 router/S99hobot-exporter
+
+  docker-build-test:
+    name: Test Docker build (exporter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exporter image
+        run: docker build -t hobot-exporter-test ./exporter
+
+  secret-scan:
+    name: Scan for leaked secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
