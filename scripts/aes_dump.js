@@ -4,7 +4,6 @@ Java.perform(function () {
     Cipher.doFinal.overload("[B").implementation = function (input) {
         var result = this.doFinal(input);
         try {
-            var opmode = this.getOpmode ? "" : "";
             var resultStr = Java.use("java.lang.String").$new(result, "UTF-8");
             console.log("\n===== Cipher.doFinal output =====\n" + resultStr);
         } catch (e) {

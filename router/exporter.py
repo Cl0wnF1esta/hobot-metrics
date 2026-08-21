@@ -6,9 +6,10 @@ from logging.handlers import RotatingFileHandler
 import tinytuya
 from prometheus_client import start_http_server, Gauge, Info
 
-# Если задан HOBOT_LOG_FILE — логи пишутся в файл с ротацией (10 МБ x 3 файла),
-# помимо вывода в консоль. Полезно при запуске напрямую (не в Docker), где
-# нет встроенного ограничения на размер логов, как у json-file драйвера Docker.
+# If HOBOT_LOG_FILE is set, logs are also written to a rotating file
+# (10 MB x 3 files), in addition to console output. Useful when running
+# directly (not in Docker), where there's no built-in log size limit
+# like Docker's json-file driver provides.
 LOG_FILE = os.environ.get("HOBOT_LOG_FILE", "")
 
 log_handlers = [logging.StreamHandler()]
@@ -24,7 +25,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("hobot-exporter")
 
-# --- Конфигурация через переменные окружения ---
+# --- Configuration via environment variables ---
 DEVICE_ID = os.environ["HOBOT_DEVICE_ID"]
 DEVICE_IP = os.environ["HOBOT_DEVICE_IP"]
 LOCAL_KEY = os.environ["HOBOT_LOCAL_KEY"]
@@ -32,7 +33,7 @@ PROTOCOL_VERSION = float(os.environ.get("HOBOT_PROTOCOL_VERSION", "3.3"))
 POLL_INTERVAL = int(os.environ.get("HOBOT_POLL_INTERVAL", "15"))
 EXPORTER_PORT = int(os.environ.get("HOBOT_EXPORTER_PORT", "9099"))
 
-# --- Расшифровка кодов состояния из схемы устройства (dps) ---
+# --- Status code mapping from the device schema (dps) ---
 ROBOT_STATUS_MAP = {
     "ok": "ok",
     "full_charged": "full_charged",
@@ -49,20 +50,20 @@ ROBOT_STATUS_MAP = {
     "K_error": "K_error",
 }
 
-# --- Метрики Prometheus ---
+# --- Prometheus metrics ---
 METRIC_PREFIX = "hobot"
 
-battery_percent = Gauge(f"{METRIC_PREFIX}_battery_percent", "Заряд батареи, %")
-clean_area_sqm = Gauge(f"{METRIC_PREFIX}_clean_area_sqm", "Убранная площадь за текущую уборку, кв.м")
-clean_time_seconds = Gauge(f"{METRIC_PREFIX}_clean_time_seconds", "Время текущей уборки, сек")
-error_code = Gauge(f"{METRIC_PREFIX}_error_code", "Код ошибки (0 = нет ошибок)")
-online = Gauge(f"{METRIC_PREFIX}_online", "Успешен ли последний опрос устройства (1/0)")
-poll_duration_seconds = Gauge(f"{METRIC_PREFIX}_poll_duration_seconds", "Время последнего опроса устройства, сек")
+battery_percent = Gauge(f"{METRIC_PREFIX}_battery_percent", "Battery charge, %")
+clean_area_sqm = Gauge(f"{METRIC_PREFIX}_clean_area_sqm", "Area cleaned in the current session, sq.m")
+clean_time_seconds = Gauge(f"{METRIC_PREFIX}_clean_time_seconds", "Duration of the current cleaning session, sec")
+error_code = Gauge(f"{METRIC_PREFIX}_error_code", "Error code (0 = no errors)")
+online = Gauge(f"{METRIC_PREFIX}_online", "Whether the last device poll succeeded (1/0)")
+poll_duration_seconds = Gauge(f"{METRIC_PREFIX}_poll_duration_seconds", "Duration of the last device poll, sec")
 
-# "Info"-метрика для строковых/enum состояний — удобно фильтровать и строить таблицы в Grafana
-status_info = Info(f"{METRIC_PREFIX}_status", "Текущие строковые статусы пылесоса")
+# "Info" metric for string/enum states — convenient for filtering and building tables in Grafana
+status_info = Info(f"{METRIC_PREFIX}_status", "Current string statuses of the vacuum")
 
-# DPS-коды согласно схеме устройства (см. m.life.device.ref.info.my.list)
+# DPS codes as defined by the device schema (see m.life.device.ref.info.my.list)
 DP_ROBOT_STATUS = "5"
 DP_BATTERY = "6"
 DP_MODE = "4"
@@ -83,10 +84,10 @@ def build_device() -> tinytuya.Device:
     return d
 
 
-# Пылесос при активной работе часто шлёт ЧАСТИЧНЫЕ обновления (только
-# изменившиеся dps, например heartbeat), а не полный снимок каждый раз.
-# Поэтому храним последние известные значения и обновляем только то,
-# что реально пришло в конкретном ответе — остальное не затираем.
+# While actively cleaning, the device often sends PARTIAL updates (only the
+# dps that changed, e.g. a heartbeat) rather than a full snapshot every time.
+# So we keep the last known values and only update whatever actually came
+# back in a given response — everything else is left untouched.
 known_dps: dict = {}
 
 
@@ -99,12 +100,12 @@ def poll_once(d: tinytuya.Device) -> None:
     dps = result.get("dps") if isinstance(result, dict) else None
 
     if not dps:
-        log.warning("Пустой или некорректный ответ от устройства: %s", result)
+        log.warning("Empty or invalid response from device: %s", result)
         online.set(0)
         return
 
     online.set(1)
-    known_dps.update(dps)  # мержим частичный ответ поверх уже известного состояния
+    known_dps.update(dps)  # merge the partial response on top of the known state
 
     if DP_BATTERY in known_dps:
         battery_percent.set(known_dps[DP_BATTERY])
@@ -136,7 +137,7 @@ def poll_once(d: tinytuya.Device) -> None:
 
 
 def main() -> None:
-    log.info("Запуск hobot-exporter на порту %d, опрос каждые %d сек", EXPORTER_PORT, POLL_INTERVAL)
+    log.info("Starting hobot-exporter on port %d, polling every %d sec", EXPORTER_PORT, POLL_INTERVAL)
     start_http_server(EXPORTER_PORT)
 
     d = build_device()
@@ -145,13 +146,13 @@ def main() -> None:
         try:
             poll_once(d)
         except Exception as e:
-            log.error("Ошибка опроса устройства: %s", e)
+            log.error("Error polling device: %s", e)
             online.set(0)
-            # На случай обрыва соединения — пересоздаём объект устройства
+            # In case the connection dropped — rebuild the device object
             try:
                 d = build_device()
             except Exception as e2:
-                log.error("Не удалось переподключиться: %s", e2)
+                log.error("Failed to reconnect: %s", e2)
 
         time.sleep(POLL_INTERVAL)
 
