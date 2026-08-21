@@ -1,10 +1,10 @@
+import logging
 import os
 import time
-import logging
 from logging.handlers import RotatingFileHandler
 
 import tinytuya
-from prometheus_client import start_http_server, Gauge, Info
+from prometheus_client import Gauge, Info, start_http_server
 
 # If HOBOT_LOG_FILE is set, logs are also written to a rotating file
 # (10 MB x 3 files), in addition to console output. Useful when running
@@ -145,13 +145,13 @@ def main() -> None:
     while True:
         try:
             poll_once(d)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - intentionally broad: tinytuya can raise various undocumented errors
             log.error("Error polling device: %s", e)
             online.set(0)
             # In case the connection dropped — rebuild the device object
             try:
                 d = build_device()
-            except Exception as e2:
+            except Exception as e2:  # noqa: BLE001 - same as above
                 log.error("Failed to reconnect: %s", e2)
 
         time.sleep(POLL_INTERVAL)
