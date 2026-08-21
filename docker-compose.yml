@@ -1,0 +1,70 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  hobot-exporter:
+    build: ./exporter
+    image: hobot-exporter:1.0
+    container_name: hobot-exporter
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      HOBOT_DEVICE_ID: "${HOBOT_DEVICE_ID}"
+      HOBOT_DEVICE_IP: "${HOBOT_DEVICE_IP}"
+      HOBOT_LOCAL_KEY: "${HOBOT_LOCAL_KEY}"
+      HOBOT_PROTOCOL_VERSION: "${HOBOT_PROTOCOL_VERSION:-3.3}"
+      HOBOT_POLL_INTERVAL: "${HOBOT_POLL_INTERVAL:-15}"
+      HOBOT_EXPORTER_PORT: "9099"
+    ports:
+      - "9099:9099"
+    networks:
+      - hobot-net
+
+  prometheus:
+    image: prom/prometheus:v3.13.2
+    container_name: hobot-prometheus
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=90d"
+      - "--storage.tsdb.retention.size=2GB"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - hobot-net
+    depends_on:
+      - hobot-exporter
+
+  grafana:
+    image: grafana/grafana:13.2.0
+    container_name: hobot-grafana
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - hobot-net
+    depends_on:
+      - prometheus
+
+networks:
+  hobot-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
