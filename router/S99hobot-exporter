@@ -1,0 +1,17 @@
+#!/bin/sh
+ENABLED=yes
+PROCS=python3
+ARGS="/opt/root/exporter.py"
+PREARGS=""
+DESC=$0
+PATH=/opt/sbin:/opt/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# --- Настройки подключения к устройству и логированию ---
+export HOBOT_DEVICE_ID="your_device_id_here"
+export HOBOT_DEVICE_IP="192.168.1.XXX"
+export HOBOT_LOCAL_KEY="your_local_key_here"
+export HOBOT_PROTOCOL_VERSION="3.3"
+export HOBOT_POLL_INTERVAL="15"
+export HOBOT_LOG_FILE="/opt/var/log/hobot-exporter.log"
+
+. /opt/etc/init.d/rc.func

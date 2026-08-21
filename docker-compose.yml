@@ -5,24 +5,6 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
-  hobot-exporter:
-    build: ./exporter
-    image: hobot-exporter:1.0
-    container_name: hobot-exporter
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      HOBOT_DEVICE_ID: "${HOBOT_DEVICE_ID}"
-      HOBOT_DEVICE_IP: "${HOBOT_DEVICE_IP}"
-      HOBOT_LOCAL_KEY: "${HOBOT_LOCAL_KEY}"
-      HOBOT_PROTOCOL_VERSION: "${HOBOT_PROTOCOL_VERSION:-3.3}"
-      HOBOT_POLL_INTERVAL: "${HOBOT_POLL_INTERVAL:-15}"
-      HOBOT_EXPORTER_PORT: "9099"
-    ports:
-      - "9099:9099"
-    networks:
-      - hobot-net
-
   prometheus:
     image: prom/prometheus:v3.13.2
     container_name: hobot-prometheus
@@ -40,8 +22,6 @@ services:
       - "9090:9090"
     networks:
       - hobot-net
-    depends_on:
-      - hobot-exporter
 
   grafana:
     image: grafana/grafana:13.2.0
