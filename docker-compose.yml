@@ -10,6 +10,8 @@ services:
     container_name: hobot-prometheus
     restart: unless-stopped
     logging: *default-logging
+    mem_limit: 150m
+    cpus: 0.3
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -18,8 +20,6 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
-    ports:
-      - "9090:9090"
     networks:
       - hobot-net
 
@@ -28,6 +28,8 @@ services:
     container_name: hobot-grafana
     restart: unless-stopped
     logging: *default-logging
+    mem_limit: 400m
+    cpus: 0.5
     environment:
       GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
@@ -35,7 +37,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "${GRAFANA_BIND_ADDR}:3000:3000"
     networks:
       - hobot-net
     depends_on:
