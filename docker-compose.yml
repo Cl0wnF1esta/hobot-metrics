@@ -20,6 +20,7 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+      - ./prometheus/extra:/etc/prometheus/extra:ro   # optional local rules and scrape jobs (git-ignored)
     networks:
       - hobot-net
 

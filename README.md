@@ -32,6 +32,13 @@
 
 6. Дашборд "Hobot Legee 7 — Метрики пылесоса" должен появиться в Grafana автоматически (через provisioning). Доступ — только через VPN (см. `docs/NETWORK_SETUP.md`).
 
+## Server-specific settings
+
+Развернутый сервер может отличаться от кода в репозитории в нескольких местах из-за ручных правок:
+
+- `prometheus/prometheus.yml`: адрес экспортера внутри WireGuard-туннеля
+- Git-игнорирует локальные файлы: `.env`, `docker-compose.override.yml`, `alertmanager/`, `prometheus/extra/`.
+
 ## Важные нюансы
 
 - **IP устройства-экспортера может смениться** (DHCP) — закрепи статическую
